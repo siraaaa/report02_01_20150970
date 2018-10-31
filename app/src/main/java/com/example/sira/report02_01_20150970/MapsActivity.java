@@ -1,6 +1,7 @@
 package com.example.sira.report02_01_20150970;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
@@ -50,15 +51,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private GoogleMap mMap;
     private Geocoder geocoder;
     private Button button;
-    Button markAround;
+    private Button markAround; //내 주변 음식점
+    private Button cafeAround; //내 주변 카페
     //private EditText editText;
 
     //나의 위도 경도 고도
     double mLatitude;  //위도
     double mLongitude; //경도
-    private LatLng current;
+    private LatLng current; //현재 내 위치
+    Location lastLocation;
 
-    LocationManager locationManager;
+    //현재 위치 찾기 위함
+    private LocationManager locationManager;
+    private final static int MY_PERMISSIONS_REQUEST_ACCESS_LOCATION = 1;
 
     //주소 자동완성 API
     PlaceAutocompleteFragment autocompleteFragment;
@@ -67,6 +72,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     //주변 음식점 검색
     List<Marker> previous_marker = null;
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -74,12 +80,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //editText = (EditText) findViewById(R.id.editText);
         button=(Button)findViewById(R.id.button);
         markAround = (Button)findViewById(R.id.btnAround);
+        cafeAround = (Button)findViewById(R.id.btn_around_cafe);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
 
         autocompleteFragment = (PlaceAutocompleteFragment)
                 getFragmentManager().findFragmentById(R.id.place_autocomplete_fragment);
@@ -99,10 +105,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
-
-        //LocationManager 현재 위치 나타내기 위함
-        locationManager = (LocationManager)getSystemService(LOCATION_SERVICE);
-
+        //현재 위치 찾기
+        locationManager = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
 
         //GPS가 켜져있는지 체크
         if(!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)){
@@ -137,14 +141,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         markAround.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                current = new LatLng(mLatitude,mLongitude);
-                Toast.makeText(MapsActivity.this, "야하"+current.toString(), Toast.LENGTH_SHORT).show();
+                current = new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude());
+                //lastLocation = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
+                //Toast.makeText(MapsActivity.this, "야하"+current.toString(), Toast.LENGTH_SHORT).show();
                 showPlaceInformation(current);
             }
         });
 
-    }
+        cafeAround.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                current = new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude());
+                //lastLocation = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
+                //Toast.makeText(MapsActivity.this, "야하"+current.toString(), Toast.LENGTH_SHORT).show();
+                showCafeInformation(current);
+            }
+        });
 
+    }
 
     //주변 음식점 찾기 위한 메소드 4개
     @Override
@@ -167,9 +181,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     LatLng latLng
                             = new LatLng(place.getLatitude()
                             , place.getLongitude());
-                    //String markerSnippet = getCurrentAddress(latLng);
-                    String markerSnippet =  latLng.latitude + ", " +  latLng.longitude;
-
+                    String markerSnippet = current.toString();
 
                     MarkerOptions markerOptions = new MarkerOptions();
                     markerOptions.position(latLng);
@@ -200,16 +212,37 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void showPlaceInformation(LatLng location)
     {
         mMap.clear();//지도 클리어
+        //Toast.makeText(MapsActivity.this, "showin", Toast.LENGTH_SHORT).show();
 
         if (previous_marker != null)
             previous_marker.clear();//지역정보 마커 클리어
 
         new NRPlaces.Builder()
                 .listener(this)
-                .key("AIzaSyDdrYBxNb5Vk8fgU_GhaBz-nh2G6mHcQ3Y")
+                .key("AIzaSyCXd2gcTIuvQ-Ww072F434HbNyxli43g7U")
                 .latlng(location.latitude, location.longitude)//현재 위치
                 .radius(500) //500 미터 내에서 검색
                 .type(PlaceType.RESTAURANT) //음식점
+                .language("ko", "KR")
+                .build()
+                .execute();
+    }
+
+    public void showCafeInformation(LatLng location)
+    {
+        mMap.clear();//지도 클리어
+        //Toast.makeText(MapsActivity.this, "showin", Toast.LENGTH_SHORT).show();
+
+        if (previous_marker != null)
+            previous_marker.clear();//지역정보 마커 클리어
+
+        new NRPlaces.Builder()
+                .listener(this)
+                .key("AIzaSyCXd2gcTIuvQ-Ww072F434HbNyxli43g7U")
+                .latlng(location.latitude, location.longitude)//현재 위치
+                .radius(500) //500 미터 내에서 검색
+                .type(PlaceType.CAFE) //음식점
+                .language("ko", "KR")
                 .build()
                 .execute();
     }
@@ -233,15 +266,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+
     //나의 위치 요청
     public void requestMyLocation(){
         if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
             return;
         }
-        //요청
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 100, 10, locationListener);
+
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10, 10, locationListener);
+
     }
+
+
 
     //위치정보 구하기 리스너
     LocationListener locationListener = new LocationListener() {
@@ -257,13 +294,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             //위도 경도
             mLatitude = location.getLatitude();   //위도
             mLongitude = location.getLongitude(); //경도
-            Toast.makeText(MapsActivity.this, "현재"+mLongitude+mLatitude , Toast.LENGTH_SHORT).show();
-            Log.d(TAG, "onActivityResult : "+mLatitude+mLongitude);
 
             //맵생성
-            SupportMapFragment mapFragment = (SupportMapFragment)getSupportFragmentManager().findFragmentById(R.id.map);
+            //SupportMapFragment mapFragment = (SupportMapFragment)getSupportFragmentManager().findFragmentById(R.id.map);
             //콜백클래스 설정
-            mapFragment.getMapAsync(MapsActivity.this);
+            //mapFragment.getMapAsync(MapsActivity.this);
         }
 
         @Override
@@ -294,15 +329,42 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //지도타입 - 일반
         mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
         //나의 위치 설정
-        LatLng position = new LatLng(mLatitude , mLongitude);
+        //LatLng position = new LatLng(mLatitude , mLongitude);
+
+        //초기 좌표 설정 - 강남역으로 설정
+        LatLng init = new LatLng(37.498, 127.029);
+        mMap.addMarker(new MarkerOptions().position(init).title("Marker in Seoul"));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(init, 15));
+
 
         //화면중앙의 위치와 카메라 줌비율
-        this.mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(position, 15));
+        //this.mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(position, 15));
 
         //지도에서 우측에 +,- 버튼과 상단에 현재 위치를 찾아가는 버튼을 설정
         mMap.setMyLocationEnabled(true);
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
+
+        mMap.setOnMyLocationButtonClickListener(new GoogleMap.OnMyLocationButtonClickListener() {
+            @Override
+            public boolean onMyLocationButtonClick() {
+                if(ContextCompat.checkSelfPermission(MapsActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
+                        ContextCompat.checkSelfPermission(MapsActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
+                    return true;
+                }
+
+                String bestProvider = LocationManager.PASSIVE_PROVIDER;
+                //요청
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10, 10, locationListener);
+
+                //현재 사용 중인 Provider 로부터 전달 받은 최종 위치
+                lastLocation = locationManager.getLastKnownLocation(bestProvider);
+                ;
+                Toast.makeText(MapsActivity.this, "현재"+lastLocation.getLatitude()+","+lastLocation.getLongitude() , Toast.LENGTH_SHORT).show();
+                return false;
+            }
+        });
+
 
 
         // 맵 터치 이벤트 구현 //
@@ -326,6 +388,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         // 버튼 이벤트
         button.setOnClickListener(new Button.OnClickListener(){
+
             @Override
             public void onClick(View v){
                // String str=editText.getText().toString();
@@ -369,8 +432,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         ////////////////////
 
         // Add a marker in Sydney and move the camera
-        LatLng seoul = new LatLng(37, 127);
+
+        /*LatLng seoul = new LatLng(37, 127);
         mMap.addMarker(new MarkerOptions().position(seoul).title("Marker in Seoul"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(seoul));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(seoul));*/
     }
 }
