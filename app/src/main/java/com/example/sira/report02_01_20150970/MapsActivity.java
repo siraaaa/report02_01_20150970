@@ -31,21 +31,32 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+import noman.googleplaces.NRPlaces;
+import noman.googleplaces.PlaceType;
+import noman.googleplaces.PlacesListener;
+import noman.googleplaces.PlacesException;
 
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, PlacesListener {
+
+    private static final String TAG = "MapsActivity";
     private GoogleMap mMap;
     private Geocoder geocoder;
     private Button button;
+    Button markAround;
     //private EditText editText;
 
     //나의 위도 경도 고도
     double mLatitude;  //위도
     double mLongitude; //경도
+    private LatLng current;
 
     LocationManager locationManager;
 
@@ -53,13 +64,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     PlaceAutocompleteFragment autocompleteFragment;
     String str;
 
+    //주변 음식점 검색
+    List<Marker> previous_marker = null;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         //editText = (EditText) findViewById(R.id.editText);
         button=(Button)findViewById(R.id.button);
-
+        markAround = (Button)findViewById(R.id.btnAround);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -72,7 +86,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         autocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
             @Override
-            public void onPlaceSelected(Place place) {
+            public void onPlaceSelected(com.google.android.gms.location.places.Place place) {
                 // TODO: Get info about the selected place.
                 str = place.getName().toString();
                 System.out.println( "Place: " + place.getName());
@@ -85,7 +99,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
-        //LocationManager
+
+        //LocationManager 현재 위치 나타내기 위함
         locationManager = (LocationManager)getSystemService(LOCATION_SERVICE);
 
 
@@ -115,9 +130,89 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             requestMyLocation();
         }
 
+
+
+        previous_marker = new ArrayList<Marker>();
+
+        markAround.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                current = new LatLng(mLatitude,mLongitude);
+                Toast.makeText(MapsActivity.this, "야하"+current.toString(), Toast.LENGTH_SHORT).show();
+                showPlaceInformation(current);
+            }
+        });
+
     }
 
 
+    //주변 음식점 찾기 위한 메소드 4개
+    @Override
+    public void onPlacesFailure(PlacesException e) {
+
+    }
+
+    @Override
+    public void onPlacesStart() {
+
+    }
+
+    @Override
+    public void onPlacesSuccess(final List<noman.googleplaces.Place> places) {
+        runOnUiThread(new Runnable() {
+
+            @Override
+            public void run() {
+                for (noman.googleplaces.Place place : places) {
+                    LatLng latLng
+                            = new LatLng(place.getLatitude()
+                            , place.getLongitude());
+                    //String markerSnippet = getCurrentAddress(latLng);
+                    String markerSnippet =  latLng.latitude + ", " +  latLng.longitude;
+
+
+                    MarkerOptions markerOptions = new MarkerOptions();
+                    markerOptions.position(latLng);
+                    markerOptions.title(place.getName());
+                    markerOptions.snippet(markerSnippet);
+                    Marker item = mMap.addMarker(markerOptions);
+                    previous_marker.add(item);
+
+                }
+
+                //중복 마커 제거
+                HashSet<Marker> hashSet = new HashSet<Marker>();
+                hashSet.addAll(previous_marker);
+                previous_marker.clear();
+                previous_marker.addAll(hashSet);
+            }
+
+        });
+
+    }
+    @Override
+    public void onPlacesFinished() {
+
+    }
+
+    //
+
+    public void showPlaceInformation(LatLng location)
+    {
+        mMap.clear();//지도 클리어
+
+        if (previous_marker != null)
+            previous_marker.clear();//지역정보 마커 클리어
+
+        new NRPlaces.Builder()
+                .listener(this)
+                .key("AIzaSyDdrYBxNb5Vk8fgU_GhaBz-nh2G6mHcQ3Y")
+                .latlng(location.latitude, location.longitude)//현재 위치
+                .radius(500) //500 미터 내에서 검색
+                .type(PlaceType.RESTAURANT) //음식점
+                .build()
+                .execute();
+    }
 
 
 
@@ -162,6 +257,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             //위도 경도
             mLatitude = location.getLatitude();   //위도
             mLongitude = location.getLongitude(); //경도
+            Toast.makeText(MapsActivity.this, "현재"+mLongitude+mLatitude , Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "onActivityResult : "+mLatitude+mLongitude);
 
             //맵생성
             SupportMapFragment mapFragment = (SupportMapFragment)getSupportFragmentManager().findFragmentById(R.id.map);
@@ -222,7 +319,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 // LatLng: 위도 경도 쌍을 나타냄
                 mOptions.position(new LatLng(latitude, longitude));
                 // 마커(핀) 추가
-                googleMap.addMarker(mOptions);
+                mMap.addMarker(mOptions);
             }
         });
         ////////////////////
@@ -272,8 +369,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         ////////////////////
 
         // Add a marker in Sydney and move the camera
-        LatLng sydney = new LatLng(-34, 151);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+        LatLng seoul = new LatLng(37, 127);
+        mMap.addMarker(new MarkerOptions().position(seoul).title("Marker in Seoul"));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(seoul));
     }
 }
